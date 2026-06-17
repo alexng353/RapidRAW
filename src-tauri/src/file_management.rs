@@ -1567,9 +1567,20 @@ pub fn set_thumbnail_priorities(
     let final_remaining = queue.final_count();
     drop(queue);
 
-    // Progress reflects Final develop work only.
+    // Count Final jobs that workers have already popped from the queue and are
+    // developing right now (in processing_now but not yet counted in completed).
+    let inflight_finals = state
+        .thumbnail_manager
+        .processing_now
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(_path, is_embedded)| !*is_embedded)
+        .count();
+
+    // Progress reflects Final develop work only (queued + in-flight).
     let mut tracker = state.thumbnail_progress.lock().unwrap();
-    tracker.total = tracker.completed + final_remaining;
+    tracker.total = tracker.completed + final_remaining + inflight_finals;
     let (current, total) = (tracker.completed, tracker.total);
     drop(tracker);
     let _ = app_handle.emit(

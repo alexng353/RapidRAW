@@ -208,6 +208,8 @@ export default function LibraryGrid(props: any) {
   const requestViewportThumbnailsRef = useRef<
     (gd: GridDataShape | null, top: number, gs: { height: number; width: number }) => void
   >(() => {});
+  // Track the last imageList identity so background is sent only once per folder/path-set
+  const lastBackgroundKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const el = libraryContainerRef.current;
@@ -331,7 +333,14 @@ export default function LibraryGrid(props: any) {
 
       const visible = allPaths.slice(visibleStartFlat, visibleEndFlat + 1);
       const prefetch = allPaths.slice(visibleEndFlat + 1, prefetchEnd + 1);
-      const background = allPaths.filter((_p, i) => i < visibleStartFlat || i > prefetchEnd);
+
+      // Compute background identity key — send full background only when the path-set changes.
+      const bgKey = allPaths.length + ':' + (allPaths[0] ?? '') + ':' + (allPaths[allPaths.length - 1] ?? '');
+      const isNewPathSet = bgKey !== lastBackgroundKeyRef.current;
+      const background = isNewPathSet ? allPaths.filter((_p, i) => i < visibleStartFlat || i > prefetchEnd) : [];
+      if (isNewPathSet) {
+        lastBackgroundKeyRef.current = bgKey;
+      }
 
       // Compute target resolution from the real rendered cell width
       const cellCssPx = currentGridData.itemWidth;

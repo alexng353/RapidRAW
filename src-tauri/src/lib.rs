@@ -42,7 +42,7 @@ use std::io::Cursor;
 use std::io::Write;
 use std::panic;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
@@ -235,27 +235,6 @@ fn get_image_dimensions(path: String) -> Result<ImageDimensions, String> {
     image::image_dimensions(&source_path)
         .map(|(width, height)| ImageDimensions { width, height })
         .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn cancel_thumbnail_generation(
-    state: tauri::State<AppState>,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    state
-        .thumbnail_cancellation_token
-        .store(true, Ordering::SeqCst);
-
-    let mut tracker = state.thumbnail_progress.lock().unwrap();
-    tracker.total = 0;
-    tracker.completed = 0;
-    drop(tracker);
-
-    let _ = app_handle.emit(
-        "thumbnail-progress",
-        serde_json::json!({ "current": 0, "total": 0 }),
-    );
-    Ok(())
 }
 
 pub fn get_cached_full_warped_image(
@@ -2205,7 +2184,6 @@ pub fn run() {
             indexing_task_handle: Mutex::new(None),
             lut_cache: Mutex::new(HashMap::new()),
             initial_file_path: Mutex::new(None),
-            thumbnail_cancellation_token: Arc::new(AtomicBool::new(false)),
             thumbnail_progress: Mutex::new(ThumbnailProgressTracker { total: 0, completed: 0 }),
             preview_worker_tx: Mutex::new(None),
             analytics_worker_tx: Mutex::new(None),
@@ -2238,7 +2216,6 @@ pub fn run() {
             save_temp_file,
             get_image_dimensions,
             frontend_ready,
-            cancel_thumbnail_generation,
             update_wgpu_transform,
             android_integration::resolve_android_content_uri_name,
             cache_utils::clear_session_caches,
