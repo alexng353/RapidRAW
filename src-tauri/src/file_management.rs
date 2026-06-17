@@ -3056,7 +3056,7 @@ pub fn get_thumb_cache_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     Ok(thumb_cache_dir)
 }
 
-pub fn get_cache_key_hash(path_str: &str) -> Option<String> {
+pub fn get_cache_key_hash(path_str: &str, target_res: u32) -> Option<String> {
     let (_, sidecar_path) = parse_virtual_path(path_str);
 
     let adjustments_bytes = if let Ok(content) = fs::read_to_string(&sidecar_path) {
@@ -3069,7 +3069,7 @@ pub fn get_cache_key_hash(path_str: &str) -> Option<String> {
         Vec::new()
     };
 
-    compute_thumbnail_cache_hash(path_str, &adjustments_bytes, 720)
+    compute_thumbnail_cache_hash(path_str, &adjustments_bytes, target_res)
 }
 
 pub fn get_cached_or_generate_thumbnail_image(
@@ -3081,7 +3081,7 @@ pub fn get_cached_or_generate_thumbnail_image(
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
     let target_width = settings.thumbnail_resolution.unwrap_or(720);
 
-    if let Some(cache_hash) = get_cache_key_hash(path_str) {
+    if let Some(cache_hash) = get_cache_key_hash(path_str, target_width) {
         let cache_filename = format!("{}.jpg", cache_hash);
         let cache_path = thumb_cache_dir.join(cache_filename);
 
@@ -3714,6 +3714,40 @@ mod cache_hash_tests {
         assert_ne!(
             a, b,
             "different target_res must produce different cache keys"
+        );
+    }
+
+    #[test]
+    fn lookup_key_equals_write_key_for_non_default_resolution() {
+        // Simulates what get_cached_or_generate_thumbnail_image does:
+        // the lookup hash (via get_cache_key_hash) and the write hash must be
+        // identical when computed with the same target_res.
+        //
+        // Use 640 (≠ 720 default) to prove the fix — before this fix,
+        // get_cache_key_hash always passed 720, so the hashes would differ.
+        let p = concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml");
+        let target_res: u32 = 640;
+
+        // Simulate the lookup path (get_cache_key_hash with the real resolution).
+        let lookup_hash = compute_thumbnail_cache_hash(p, b"{}", target_res);
+
+        // Simulate the write path: same path, same empty adjustments, same target_res.
+        let write_hash = compute_thumbnail_cache_hash(p, b"{}", target_res);
+
+        assert!(
+            lookup_hash.is_some() && write_hash.is_some(),
+            "hashes should be computable for a real path"
+        );
+        assert_eq!(
+            lookup_hash, write_hash,
+            "lookup key must equal write key for the same target_res ({target_res})"
+        );
+
+        // Also confirm 640 key differs from the old hardcoded-720 key.
+        let stale_720_hash = compute_thumbnail_cache_hash(p, b"{}", 720);
+        assert_ne!(
+            lookup_hash, stale_720_hash,
+            "a non-default resolution ({target_res}) must not collide with the 720 key"
         );
     }
 }

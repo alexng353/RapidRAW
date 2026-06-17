@@ -479,9 +479,11 @@ pub async fn load_image(
     })
 }
 
-/// Extract an embedded JPEG preview from a RAW file, oriented and downscaled to
-/// `target_res` (longest edge). Returns None for non-RAW files or RAWs without an
-/// embedded preview, or on any decode error/panic (caller falls back to develop).
+/// Extract an embedded JPEG preview from a RAW file, downscaled to `target_res`
+/// (longest edge). The preview is returned as-is from the embedded data — EXIF
+/// orientation is not applied here; callers that need correct orientation should
+/// rely on the final develop pass. Returns None for non-RAW files or RAWs without
+/// an embedded preview, or on any decode error/panic (caller falls back to develop).
 pub fn extract_embedded_preview(path_str: &str, target_res: u32) -> Option<image::DynamicImage> {
     use crate::formats::is_raw_file;
     if !is_raw_file(path_str) {
