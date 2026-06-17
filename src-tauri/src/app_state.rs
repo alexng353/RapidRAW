@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::mpsc::Sender;
@@ -89,15 +89,17 @@ pub struct ThumbnailProgressTracker {
 }
 
 pub struct ThumbnailManager {
-    pub queue: Mutex<VecDeque<String>>,
+    pub queue: Mutex<crate::thumbnail_queue::ThumbnailQueue>,
     pub cvar: Condvar,
-    pub processing_now: Mutex<HashSet<String>>,
+    // dedup keyed by (path, is_embedded) so an in-flight embedded job does not
+    // block that path's develop job.
+    pub processing_now: Mutex<HashSet<(String, bool)>>,
 }
 
 impl ThumbnailManager {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
-            queue: Mutex::new(VecDeque::new()),
+            queue: Mutex::new(crate::thumbnail_queue::ThumbnailQueue::new(2000)),
             cvar: Condvar::new(),
             processing_now: Mutex::new(HashSet::new()),
         })

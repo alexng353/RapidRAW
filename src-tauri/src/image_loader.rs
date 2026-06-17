@@ -478,3 +478,35 @@ pub async fn load_image(
         is_raw,
     })
 }
+
+/// Extract an embedded JPEG preview from a RAW file, oriented and downscaled to
+/// `target_res` (longest edge). Returns None for non-RAW files or RAWs without an
+/// embedded preview, or on any decode error/panic (caller falls back to develop).
+pub fn extract_embedded_preview(path_str: &str, target_res: u32) -> Option<image::DynamicImage> {
+    use crate::formats::is_raw_file;
+    if !is_raw_file(path_str) {
+        return None;
+    }
+    let (source_path, _) = crate::file_management::parse_virtual_path(path_str);
+
+    std::panic::catch_unwind(|| {
+        let source = rawler::rawsource::RawSource::new(&source_path).ok()?;
+        let decoder = rawler::get_decoder(&source).ok()?;
+        let params = rawler::decoders::RawDecodeParams::default();
+
+        // Prefer the medium preview, then thumbnail, then full embedded image.
+        let img = decoder
+            .preview_image(&source, &params)
+            .ok()
+            .flatten()
+            .or_else(|| decoder.thumbnail_image(&source, &params).ok().flatten())
+            .or_else(|| decoder.full_image(&source, &params).ok().flatten())?;
+
+        // Match the developed thumbnail's downscale (longest edge == target_res).
+        Some(crate::image_processing::downscale_f32_image(
+            &img, target_res, target_res,
+        ))
+    })
+    .ok()
+    .flatten()
+}
