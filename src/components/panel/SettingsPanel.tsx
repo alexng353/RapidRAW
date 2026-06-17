@@ -121,11 +121,14 @@ const resolutions: OptionItem<number>[] = [
   { value: 3840, label: '3840px' },
 ];
 
-const thumbnailResolutions: OptionItem<number>[] = [
+const thumbnailResolutions: OptionItem<number | 'auto'>[] = [
+  { value: 'auto', label: 'Auto (match grid)' },
+  { value: 320, label: '320px' },
+  { value: 480, label: '480px' },
   { value: 640, label: '640px' },
   { value: 720, label: '720px' },
-  { value: 960, label: '960px' },
-  { value: 1080, label: '1080px' },
+  { value: 1024, label: '1024px' },
+  { value: 1920, label: '1920px' },
 ];
 
 const zoomMultiplierOptions: OptionItem<number>[] = [
@@ -531,7 +534,7 @@ export default function SettingsPanel({
   const osPlatform = useOsPlatform();
   const [processingSettings, setProcessingSettings] = useState({
     editorPreviewResolution: appSettings?.editorPreviewResolution || 1920,
-    thumbnailResolution: appSettings?.thumbnailResolution || 720,
+    thumbnailResolution: appSettings?.thumbnailResolution ?? 'auto',
     rawHighlightCompression: appSettings?.rawHighlightCompression ?? 2.5,
     processingBackend: appSettings?.processingBackend || 'auto',
     linuxGpuOptimization: appSettings?.linuxGpuOptimization ?? false,
@@ -639,7 +642,7 @@ export default function SettingsPanel({
     }
     setProcessingSettings({
       editorPreviewResolution: appSettings?.editorPreviewResolution || 1920,
-      thumbnailResolution: appSettings?.thumbnailResolution || 720,
+      thumbnailResolution: appSettings?.thumbnailResolution ?? 'auto',
       rawHighlightCompression: appSettings?.rawHighlightCompression ?? 2.5,
       processingBackend: appSettings?.processingBackend || 'auto',
       linuxGpuOptimization: appSettings?.linuxGpuOptimization ?? false,
