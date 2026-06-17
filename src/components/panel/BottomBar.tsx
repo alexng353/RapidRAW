@@ -32,7 +32,7 @@ interface BottomBarProps {
   onExportClick?(): void;
   onImageSelect?(path: string, event: any): void;
   onOpenCopyPasteSettings?(): void;
-  onRequestThumbnails?(paths: string[]): void;
+  onRequestThumbnails?(req: { visible: string[]; prefetch: string[]; background: string[]; targetRes: number }): void;
   onPaste(): void;
   onRate(rate: number): void;
   onReset?(): void;

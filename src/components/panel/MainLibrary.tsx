@@ -65,7 +65,7 @@ interface MainLibraryProps {
   onSettingsChange(settings: AppSettings): Promise<void>;
   onThumbnailAspectRatioChange(aspectRatio: ThumbnailAspectRatio): void;
   onThumbnailSizeChange(size: ThumbnailSize): void;
-  onRequestThumbnails?(paths: string[]): void;
+  onRequestThumbnails?(req: { visible: string[]; prefetch: string[]; background: string[]; targetRes: number }): void;
   rootPaths: string[];
   setLibraryViewMode(mode: LibraryViewMode): void;
   theme: string;

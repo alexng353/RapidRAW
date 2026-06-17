@@ -9,6 +9,7 @@ import Text from '../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../types/typography';
 import { useProcessStore } from '../../store/useProcessStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { resolveThumbnailRes } from '../../utils/thumbnailResolution';
 
 const HORIZONTAL_PADDING = 4;
 const ITEM_GAP = 8;
@@ -19,13 +20,20 @@ interface ImageLayer {
   opacity: number;
 }
 
+interface ThumbnailRequest {
+  visible: string[];
+  prefetch: string[];
+  background: string[];
+  targetRes: number;
+}
+
 interface ItemData {
   imageList: ImageFile[];
   imageRatings: any;
   selectedPath: string | undefined;
   multiSelectedPaths: string[];
   thumbnailAspectRatio: ThumbnailAspectRatio;
-  onRequestThumbnails?: (paths: string[]) => void;
+  onRequestThumbnails?: (req: ThumbnailRequest) => void;
   onContextMenu?: (event: any, path: string) => void;
   onImageSelect?: (path: string, event: any) => void;
   itemHeight: number;
@@ -444,21 +452,42 @@ const FilmstripList = ({
       const currentData = currentDataRef.current;
       if (!currentData.onRequestThumbnails) return;
 
-      const cached = useProcessStore.getState().thumbnails;
-      const pathsToRequest: string[] = [];
+      const { imageList } = currentData;
+      const visStart = visibleCells.columnStartIndex;
+      const visStop = visibleCells.columnStopIndex;
+      // Use the overscan range end as the prefetch boundary
+      const prefetchStop = allCells.columnStopIndex;
 
-      for (let i = allCells.columnStartIndex; i <= allCells.columnStopIndex; i++) {
-        const img = currentData.imageList[i];
-        if (img && !cached[img.path]) {
-          pathsToRequest.push(img.path);
-        }
+      const visible: string[] = [];
+      for (let i = visStart; i <= visStop; i++) {
+        const img = imageList[i];
+        if (img?.path) visible.push(img.path);
       }
 
-      if (pathsToRequest.length > 0) {
-        currentData.onRequestThumbnails(pathsToRequest);
+      const prefetch: string[] = [];
+      for (let i = visStop + 1; i <= prefetchStop; i++) {
+        const img = imageList[i];
+        if (img?.path) prefetch.push(img.path);
+      }
+
+      // Filmstrip owns only visible+prefetch; grid owns background
+      const background: string[] = [];
+
+      const appSettings = useSettingsStore.getState().appSettings;
+      // Filmstrip cell height is the itemHeight; use it as the cell CSS size
+      // itemHeight is computed inside FilmstripList but not directly accessible here;
+      // use the filmstrip container height as approximation (height prop of FilmstripList)
+      const cellCssPx = Math.max(20, height - 20);
+      const targetRes =
+        appSettings?.thumbnailResolution === 'auto' || appSettings?.thumbnailResolution == null
+          ? resolveThumbnailRes(cellCssPx, window.devicePixelRatio || 1)
+          : Number(appSettings.thumbnailResolution);
+
+      if (visible.length > 0 || prefetch.length > 0) {
+        currentData.onRequestThumbnails({ visible, prefetch, background, targetRes });
       }
     },
-    [],
+    [height],
   );
 
   const isItemVisible = useCallback((index: number) => {
@@ -612,7 +641,7 @@ interface FilmStripProps {
   onClearSelection?(): void;
   onContextMenu?(event: any, path: string): void;
   onImageSelect?(path: string, event: any): void;
-  onRequestThumbnails?(paths: string[]): void;
+  onRequestThumbnails?(req: ThumbnailRequest): void;
   selectedImage?: SelectedImage;
   thumbnailAspectRatio: ThumbnailAspectRatio;
   totalImages?: number;

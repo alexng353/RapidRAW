@@ -8,9 +8,9 @@ import { useLibraryStore } from '../../../store/useLibraryStore';
 import { LibraryViewMode, SortDirection, ThumbnailSize } from '../../ui/AppProperties';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights, TEXT_COLOR_KEYS } from '../../../types/typography';
-import { useProcessStore } from '../../../store/useProcessStore';
 import { ExifOverlay } from '../../ui/AppProperties';
 import { useSettingsStore } from '../../../store/useSettingsStore';
+import { resolveThumbnailRes } from '../../../utils/thumbnailResolution';
 
 function ListHeader({ widths, setWidths, containerRef, sortCriteria, onSortChange }: any) {
   const { t } = useTranslation();
@@ -155,6 +155,27 @@ const groupImagesByFolder = (images: any[], baseFolderPath: string | null) => {
   }));
 };
 
+interface GridRow {
+  type: string;
+  images?: { path: string }[];
+  path?: string;
+  count?: number;
+  isExpanded?: boolean;
+  startIndex?: number;
+}
+
+interface GridDataShape {
+  rows: GridRow[];
+  itemWidth: number;
+  rowHeight: number;
+  listRowHeight: number;
+  OUTER_PADDING: number;
+  ITEM_GAP: number;
+  columnCount: number;
+  isListView: boolean;
+  headerHeight: number;
+}
+
 export default function LibraryGrid(props: any) {
   const {
     imageList,
@@ -172,6 +193,7 @@ export default function LibraryGrid(props: any) {
     thumbnailSizeOptions,
     onThumbnailSizeChange,
   } = props;
+  const appSettings = useSettingsStore((s) => s.appSettings);
   const { listColumnWidths, setLibrary, sortCriteria, setSortCriteria } = useLibraryStore();
   const [gridSize, setGridSize] = useState({ height: 0, width: 0 });
   const [listHandle, setListHandle] = useListCallbackRef();
@@ -179,8 +201,11 @@ export default function LibraryGrid(props: any) {
   const libraryContainerRef = useRef<HTMLDivElement>(null);
   const gridObserverRef = useRef<ResizeObserver | null>(null);
   const loadedThumbnailsRef = useRef(new Set<string>());
-  const requestQueueRef = useRef<Set<string>>(new Set());
-  const requestTimeoutRef = useRef<any>(null);
+  const scrollTopRef = useRef(0);
+  // Stable refs so debounced scroll callback doesn't need to capture changing values
+  const gridDataRef = useRef<GridDataShape | null>(null);
+  const gridSizeRef = useRef({ height: 0, width: 0 });
+  const requestViewportThumbnailsRef = useRef<(gd: GridDataShape | null, top: number, gs: { height: number; width: number }) => void>(() => {});
 
   useEffect(() => {
     const el = libraryContainerRef.current;
@@ -236,30 +261,94 @@ export default function LibraryGrid(props: any) {
     () =>
       debounce((top: number) => {
         setLibrary({ libraryScrollTop: top });
-      }, 200),
+        scrollTopRef.current = top;
+        requestViewportThumbnailsRef.current(gridDataRef.current, top, gridSizeRef.current);
+      }, 100),
     [setLibrary],
   );
 
   useEffect(() => () => handleScroll.cancel(), [handleScroll]);
 
-  const queueThumbnailRequest = useCallback(
-    (path: string) => {
-      if (!onRequestThumbnails) return;
-      if (useProcessStore.getState().thumbnails[path]) return;
-      requestQueueRef.current.add(path);
-      if (!requestTimeoutRef.current) {
-        requestTimeoutRef.current = setTimeout(() => {
-          const paths = Array.from(requestQueueRef.current);
-          if (paths.length > 0) {
-            onRequestThumbnails(paths);
-            requestQueueRef.current.clear();
+  const requestViewportThumbnails = useCallback(
+    (currentGridData: GridDataShape | null, currentScrollTop: number, currentGridSize: { height: number; width: number }) => {
+      if (!onRequestThumbnails || !currentGridData || imageList.length === 0) return;
+
+      const { rows, rowHeight, headerHeight, columnCount } = currentGridData;
+
+      // Collect all image paths in render order from rows, tracking which flat index each falls at
+      const allPaths: string[] = [];
+      rows.forEach((row) => {
+        if (row.type === 'images') {
+          row.images?.forEach((img) => {
+            if (img?.path) allPaths.push(img.path);
+          });
+        }
+      });
+
+      if (allPaths.length === 0) return;
+
+      // Compute which row indices are visible
+      const viewportHeight = currentGridSize.height;
+
+      // Find visible row range by walking the rows array
+      let pixelOffset = 0;
+      let visibleStartFlat = 0;
+      let visibleEndFlat = allPaths.length - 1;
+      let flatIdx = 0;
+      let foundStart = false;
+
+      for (let ri = 0; ri < rows.length; ri++) {
+        const row = rows[ri];
+        let rowH = rowHeight;
+        if (row.type === 'header') rowH = headerHeight;
+        else if (row.type === 'footer') rowH = currentGridData.OUTER_PADDING;
+
+        const rowBottom = pixelOffset + rowH;
+
+        if (row.type === 'images') {
+          const imagesInRow = row.images?.length || 0;
+          if (!foundStart && rowBottom > currentScrollTop) {
+            visibleStartFlat = flatIdx;
+            foundStart = true;
           }
-          requestTimeoutRef.current = null;
-        }, 50);
+          if (pixelOffset < currentScrollTop + viewportHeight) {
+            visibleEndFlat = flatIdx + imagesInRow - 1;
+          }
+          flatIdx += imagesInRow;
+        }
+
+        pixelOffset += rowH;
       }
+
+      const pageSize = Math.max(columnCount, visibleEndFlat - visibleStartFlat + 1);
+      const prefetchEnd = Math.min(allPaths.length - 1, visibleEndFlat + pageSize);
+
+      const visible = allPaths.slice(visibleStartFlat, visibleEndFlat + 1);
+      const prefetch = allPaths.slice(visibleEndFlat + 1, prefetchEnd + 1);
+      const background = allPaths.filter((_p, i) => i < visibleStartFlat || i > prefetchEnd);
+
+      // Compute target resolution from cell pixel size
+      const cellCssPx =
+        thumbnailSize === ThumbnailSize.Small
+          ? 160
+          : thumbnailSize === ThumbnailSize.Large
+            ? 320
+            : thumbnailSize === ThumbnailSize.List
+              ? 48
+              : 240;
+
+      const targetRes =
+        appSettings?.thumbnailResolution === 'auto' || appSettings?.thumbnailResolution == null
+          ? resolveThumbnailRes(cellCssPx, window.devicePixelRatio || 1)
+          : Number(appSettings.thumbnailResolution);
+
+      onRequestThumbnails({ visible, prefetch, background, targetRes });
     },
-    [onRequestThumbnails],
+    [onRequestThumbnails, imageList, thumbnailSize, appSettings],
   );
+
+  // Keep stable ref pointing to latest callback so debounced handleScroll can call it
+  requestViewportThumbnailsRef.current = requestViewportThumbnails;
 
   const handleToggleRecursiveFolder = useCallback((path: string) => {
     setCollapsedRecursiveFolders((prev) => {
@@ -345,6 +434,10 @@ export default function LibraryGrid(props: any) {
     thumbnailSizeOptions,
   ]);
 
+  // Keep stable refs up-to-date for debounced scroll handler
+  gridDataRef.current = gridData;
+  gridSizeRef.current = gridSize;
+
   useEffect(() => {
     if (!listHandle?.element || !gridData) return;
 
@@ -355,6 +448,12 @@ export default function LibraryGrid(props: any) {
       element.scrollTop = savedTop;
     }
   }, [listHandle, currentFolderPath]);
+
+  // Fire tiered thumbnail request when folder loads or grid layout changes
+  useEffect(() => {
+    if (!gridData || imageList.length === 0) return;
+    requestViewportThumbnails(gridData, scrollTopRef.current, gridSize);
+  }, [gridData, imageList, gridSize, requestViewportThumbnails]);
 
   const prevActivePath = useRef<string | null>(null);
 
@@ -420,6 +519,9 @@ export default function LibraryGrid(props: any) {
     }
   }, [activePath, gridData, multiSelectedPaths.length, listHandle, currentFolderPath, imageList, libraryViewMode]);
 
+  // No-op: per-item queuing is replaced by viewport-tiered requestViewportThumbnails
+  const noopQueueThumbnailRequest = useCallback(() => {}, []);
+
   const memoizedRowProps = useMemo(() => {
     if (!gridData) return {};
 
@@ -440,7 +542,7 @@ export default function LibraryGrid(props: any) {
       gap: gridData.ITEM_GAP,
       isListView: gridData.isListView,
       columnWidths: listColumnWidths,
-      queueThumbnailRequest,
+      queueThumbnailRequest: noopQueueThumbnailRequest,
       onToggleRecursiveFolder: handleToggleRecursiveFolder,
     };
   }, [
@@ -455,7 +557,7 @@ export default function LibraryGrid(props: any) {
     imageRatings,
     currentFolderPath,
     listColumnWidths,
-    queueThumbnailRequest,
+    noopQueueThumbnailRequest,
     handleToggleRecursiveFolder,
   ]);
 
