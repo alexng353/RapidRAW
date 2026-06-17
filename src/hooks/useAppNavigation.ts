@@ -15,6 +15,7 @@ import { debouncedSave, debouncedSetHistory } from './useEditorActions';
 
 export interface AppNavigationProps {
   clearThumbnailQueue: () => void;
+  beginFolder: () => void;
   refs: {
     transformWrapperRef: React.RefObject<any>;
     preloadedDataRef: React.RefObject<any>;
@@ -28,7 +29,7 @@ export interface AppNavigationProps {
   };
 }
 
-export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationProps) {
+export function useAppNavigation({ clearThumbnailQueue: _clearThumbnailQueue, beginFolder, refs }: AppNavigationProps) {
   const {
     transformWrapperRef,
     preloadedDataRef,
@@ -271,8 +272,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       const libraryViewMode = appSettings?.libraryViewMode;
 
       if (!preserveEditor) {
-        await invoke('cancel_thumbnail_generation');
-        clearThumbnailQueue();
+        beginFolder();
         setLibrary({ isViewLoading: true, activeAlbumId: null, libraryScrollTop: 0 });
         useLibraryStore.getState().setSearchCriteria({ tags: [], text: '', mode: 'OR' });
         setProcess({ thumbnails: {} });
@@ -387,7 +387,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         useLibraryStore.getState().setLibrary({ isViewLoading: false });
       }
     },
-    [clearThumbnailQueue, refs],
+    [beginFolder, refs],
   );
 
   const handleSelectAlbum = useCallback(
@@ -396,8 +396,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       const { setUI } = useUIStore.getState();
 
       if (!preserveEditor) {
-        await invoke('cancel_thumbnail_generation');
-        clearThumbnailQueue();
+        beginFolder();
         useLibraryStore.getState().setSearchCriteria({ tags: [], text: '', mode: 'OR' });
         setLibrary({ libraryScrollTop: 0 });
         globalImageCache.clear();
@@ -430,7 +429,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         setLibrary({ isViewLoading: false });
       }
     },
-    [clearThumbnailQueue],
+    [beginFolder],
   );
 
   const handleOpenFolder = async () => {

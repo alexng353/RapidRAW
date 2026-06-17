@@ -182,7 +182,7 @@ function App() {
   const [thumbnailSize, setThumbnailSize] = useState(defaultThumbnailSize);
   const [thumbnailAspectRatio, setThumbnailAspectRatio] = useState(ThumbnailAspectRatio.Cover);
 
-  const { requestThumbnails, clearThumbnailQueue, markGenerated } = useThumbnails();
+  const { requestThumbnails, clearThumbnailQueue, beginFolder, markGenerated } = useThumbnails();
 
   const transformWrapperRef = useRef<any>(null);
   const preloadedDataRef = useRef<{
@@ -267,6 +267,7 @@ function App() {
     handleContinueSession,
   } = useAppNavigation({
     clearThumbnailQueue,
+    beginFolder,
     refs: navigationRefs,
   });
 
