@@ -205,7 +205,9 @@ export default function LibraryGrid(props: any) {
   // Stable refs so debounced scroll callback doesn't need to capture changing values
   const gridDataRef = useRef<GridDataShape | null>(null);
   const gridSizeRef = useRef({ height: 0, width: 0 });
-  const requestViewportThumbnailsRef = useRef<(gd: GridDataShape | null, top: number, gs: { height: number; width: number }) => void>(() => {});
+  const requestViewportThumbnailsRef = useRef<
+    (gd: GridDataShape | null, top: number, gs: { height: number; width: number }) => void
+  >(() => {});
 
   useEffect(() => {
     const el = libraryContainerRef.current;
@@ -270,7 +272,11 @@ export default function LibraryGrid(props: any) {
   useEffect(() => () => handleScroll.cancel(), [handleScroll]);
 
   const requestViewportThumbnails = useCallback(
-    (currentGridData: GridDataShape | null, currentScrollTop: number, currentGridSize: { height: number; width: number }) => {
+    (
+      currentGridData: GridDataShape | null,
+      currentScrollTop: number,
+      currentGridSize: { height: number; width: number },
+    ) => {
       if (!onRequestThumbnails || !currentGridData || imageList.length === 0) return;
 
       const { rows, rowHeight, headerHeight, columnCount } = currentGridData;
