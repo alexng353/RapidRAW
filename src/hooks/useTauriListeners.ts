@@ -28,6 +28,7 @@ export function useTauriListeners({
   const thumbnailBuffer = useRef<Record<string, string>>({});
   const ratingBuffer = useRef<Record<string, number>>({});
   const editStatusBuffer = useRef<Record<string, boolean>>({});
+  const finalArrived = useRef<Set<string>>(new Set());
   const flushHandle = useRef<number | null>(null);
 
   useEffect(() => {
@@ -97,21 +98,23 @@ export function useTauriListeners({
       }),
       listen('thumbnail-generated', (event: any) => {
         if (!isEffectActive) return;
-        const { path, data, rating, is_edited } = event.payload;
+        const { path, data, rating, is_edited, stage } = event.payload;
 
         if (data) {
-          thumbnailBuffer.current[path] = data;
-          refs.current.markGenerated(path);
+          if (stage === 'final') {
+            finalArrived.current.add(path);
+            thumbnailBuffer.current[path] = data;
+            refs.current.markGenerated(path);
+          } else {
+            // embedded placeholder: only show if a final hasn't already landed
+            if (!finalArrived.current.has(path)) {
+              thumbnailBuffer.current[path] = data;
+            }
+          }
         }
-        if (rating !== undefined) {
-          ratingBuffer.current[path] = rating;
-        }
-        if (is_edited !== undefined) {
-          editStatusBuffer.current[path] = is_edited;
-        }
-        if (data || rating !== undefined || is_edited !== undefined) {
-          scheduleFlush();
-        }
+        if (rating !== undefined) ratingBuffer.current[path] = rating;
+        if (is_edited !== undefined) editStatusBuffer.current[path] = is_edited;
+        if (data || rating !== undefined || is_edited !== undefined) scheduleFlush();
       }),
       listen('ai-model-download-start', (event: any) => {
         if (isEffectActive) useProcessStore.getState().setProcess({ aiModelDownloadStatus: event.payload });
@@ -339,6 +342,7 @@ export function useTauriListeners({
       }
       thumbnailBuffer.current = {};
       ratingBuffer.current = {};
+      finalArrived.current = new Set();
       listeners.forEach((p) => p.then((unlisten) => unlisten()));
     };
   }, []);
