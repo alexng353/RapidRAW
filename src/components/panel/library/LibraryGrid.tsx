@@ -327,15 +327,8 @@ export default function LibraryGrid(props: any) {
       const prefetch = allPaths.slice(visibleEndFlat + 1, prefetchEnd + 1);
       const background = allPaths.filter((_p, i) => i < visibleStartFlat || i > prefetchEnd);
 
-      // Compute target resolution from cell pixel size
-      const cellCssPx =
-        thumbnailSize === ThumbnailSize.Small
-          ? 160
-          : thumbnailSize === ThumbnailSize.Large
-            ? 320
-            : thumbnailSize === ThumbnailSize.List
-              ? 48
-              : 240;
+      // Compute target resolution from the real rendered cell width
+      const cellCssPx = currentGridData.itemWidth;
 
       const targetRes =
         appSettings?.thumbnailResolution === 'auto' || appSettings?.thumbnailResolution == null
@@ -344,7 +337,7 @@ export default function LibraryGrid(props: any) {
 
       onRequestThumbnails({ visible, prefetch, background, targetRes });
     },
-    [onRequestThumbnails, imageList, thumbnailSize, appSettings],
+    [onRequestThumbnails, imageList, appSettings],
   );
 
   // Keep stable ref pointing to latest callback so debounced handleScroll can call it

@@ -29,7 +29,7 @@ export interface AppNavigationProps {
   };
 }
 
-export function useAppNavigation({ clearThumbnailQueue: _clearThumbnailQueue, beginFolder, refs }: AppNavigationProps) {
+export function useAppNavigation({ clearThumbnailQueue, beginFolder, refs }: AppNavigationProps) {
   const {
     transformWrapperRef,
     preloadedDataRef,
@@ -272,7 +272,11 @@ export function useAppNavigation({ clearThumbnailQueue: _clearThumbnailQueue, be
       const libraryViewMode = appSettings?.libraryViewMode;
 
       if (!preserveEditor) {
-        beginFolder();
+        if (isNewRoot) {
+          clearThumbnailQueue();
+        } else {
+          beginFolder();
+        }
         setLibrary({ isViewLoading: true, activeAlbumId: null, libraryScrollTop: 0 });
         useLibraryStore.getState().setSearchCriteria({ tags: [], text: '', mode: 'OR' });
         setProcess({ thumbnails: {} });
@@ -387,7 +391,7 @@ export function useAppNavigation({ clearThumbnailQueue: _clearThumbnailQueue, be
         useLibraryStore.getState().setLibrary({ isViewLoading: false });
       }
     },
-    [beginFolder, refs],
+    [clearThumbnailQueue, beginFolder, refs],
   );
 
   const handleSelectAlbum = useCallback(
