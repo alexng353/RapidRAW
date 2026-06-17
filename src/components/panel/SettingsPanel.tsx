@@ -127,8 +127,8 @@ const thumbnailResolutions: OptionItem<number | 'auto'>[] = [
   { value: 480, label: '480px' },
   { value: 640, label: '640px' },
   { value: 720, label: '720px' },
-  { value: 1024, label: '1024px' },
-  { value: 1920, label: '1920px' },
+  { value: 960, label: '960px' },
+  { value: 1080, label: '1080px' },
 ];
 
 const zoomMultiplierOptions: OptionItem<number>[] = [
