@@ -108,6 +108,8 @@ export enum Invokes {
   SaveAlbums = 'save_albums',
   AddToAlbum = 'add_to_album',
   GetAlbumImages = 'get_album_images',
+  SetThumbnailPriorities = 'set_thumbnail_priorities',
+  ClearThumbnailQueue = 'clear_thumbnail_queue',
 }
 
 export enum ExifOverlay {
@@ -172,6 +174,7 @@ export interface AppSettings {
   libraryViewMode?: LibraryViewMode;
   sortCriteria?: SortCriteria;
   theme: Theme;
+  thumbnailResolution?: number | 'auto';
   thumbnailSize?: ThumbnailSize;
   thumbnailAspectRatio?: ThumbnailAspectRatio;
   uiVisibility?: UiVisibility;
