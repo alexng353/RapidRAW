@@ -32,6 +32,7 @@ mod preset_converter;
 mod raw_processing;
 mod tagging;
 mod tagging_utils;
+pub mod thumbnail_queue;
 mod window_customizer;
 
 use std::collections::{HashMap, hash_map::DefaultHasher};
